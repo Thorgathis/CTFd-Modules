@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{{ super() if super is defined else '' }}
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/modules.css">
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
+{% endblock %}
+
+{% block styles %}
+{{ super() if super is defined else '' }}
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/modules.css">
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>{{ module.name }}</h1>
+    {% if module.category %}
+    <div class="text-muted lead mb-0">{{ module.category }}</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-sm-10 col-md-8 col-lg-6 my-3 mx-auto">
+      <div class="card ctfd-modules-card">
+        {% if module.banner_url %}
+        <img class="card-img-top" src="{{ module.banner_url }}" alt="banner">
+        {% endif %}
+        <div class="card-body">
+          <h5 class="card-title mb-1">Module Locked</h5>
+          <p class="text-muted mb-2">This module is currently unavailable.</p>
+          {% if lock_message %}
+          <div class="alert alert-info mb-3">{{ lock_message }}</div>
+          {% endif %}
+          <a class="btn btn-link p-0" href="{{ url_for('ctfd_modules.modules_index') }}">&larr; Back to modules</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

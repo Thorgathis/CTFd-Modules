@@ -1,0 +1,36 @@
+{% extends "admin/modules/_layout.html" %}
+
+{% set active_page = 'categories' %}
+
+{% block ctfd_modules_title %}Module categories{% endblock %}
+
+{% block ctfd_modules_body %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">{% if category %}Edit category{% else %}New category{% endif %}</h2>
+    <a class="btn btn-link" href="{{ url_for('ctfd_modules_admin.admin_module_categories_list') }}">Back</a>
+  </div>
+
+      <form method="post">
+        <input type="hidden" name="nonce" value="{{ (nonce if nonce is defined else '') or ctfd_modules_nonce() }}">
+
+        <div class="form-row">
+          <div class="form-group col-md-8">
+            <label>Name</label>
+            <input class="form-control" name="name" value="{{ category.name if category else '' }}" required>
+          </div>
+          <div class="form-group col-md-4">
+            <label>Order</label>
+            <input class="form-control" name="order" value="{{ category.order if category else 0 }}">
+          </div>
+        </div>
+
+        <button class="btn btn-primary" type="submit">Save</button>
+      </form>
+
+      {% if category %}
+        <hr>
+        <div class="alert alert-secondary">
+          Renaming a category will automatically update all modules using this category.
+        </div>
+      {% endif %}
+{% endblock %}

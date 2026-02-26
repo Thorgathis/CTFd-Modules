@@ -1,0 +1,68 @@
+{% extends "admin/modules/_layout.html" %}
+
+{% set active_page = 'settings' %}
+
+{% block ctfd_modules_title %}CTFd-Modules Settings{% endblock %}
+
+{% block ctfd_modules_body %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="mb-0">Settings</h2>
+  </div>
+
+  <form method="post" class="mt-3">
+    <input type="hidden" name="nonce" value="{{ (nonce if nonce is defined else '') or ctfd_modules_nonce() }}">
+
+    <div class="form-check mb-3">
+      <input class="form-check-input" type="checkbox" id="modules-enabled" name="modules_enabled" {% if modules_enabled %}checked{% endif %}>
+      <label class="form-check-label" for="modules-enabled">
+        Enable Modules plugin
+      </label>
+    </div>
+
+    <div class="form-group">
+      <label>Main challenge board</label>
+      <select class="form-control" name="challenges_board_mode">
+        <option value="all" {% if challenges_board_mode == 'all' %}selected{% endif %}>Show all challenges</option>
+        <option value="only_unassigned" {% if challenges_board_mode == 'only_unassigned' %}selected{% endif %}>Hide challenges that are in a module</option>
+        <option value="only_modules" {% if challenges_board_mode == 'only_modules' %}selected{% endif %}>Show only challenges that are in a module</option>
+      </select>
+      <small class="form-text text-muted">
+        This affects the JSON response of <code>GET /api/v1/challenges</code>.
+      </small>
+    </div>
+
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="hide-challenges-page" name="hide_challenges_page" {% if hide_challenges_page %}checked{% endif %}>
+      <label class="form-check-label" for="hide-challenges-page">
+        Redirect <code>/challenges</code> to <code>/modules</code>
+      </label>
+    </div>
+
+    <div class="form-group mt-3">
+      <label>Invite code length</label>
+      <input class="form-control" type="number" min="4" max="32" name="invite_code_length" value="{{ invite_code_length }}">
+      <small class="form-text text-muted">Used when generating invite codes for private modules.</small>
+    </div>
+
+    <div class="form-group">
+      <label>Locked module message</label>
+      <textarea class="form-control" name="lock_message" rows="3">{{ lock_message }}</textarea>
+      <small class="form-text text-muted">Shown on the module page when status is <code>locked</code>.</small>
+    </div>
+
+    <div class="form-group mt-3">
+      <label>UI theme compatibility</label>
+      <select class="form-control" name="ui_theme">
+        {% set _t = (ui_theme or 'auto') %}
+        <option value="auto" {% if _t == 'auto' %}selected{% endif %}>Auto (safe defaults)</option>
+        <option value="pixo" {% if _t == 'pixo' %}selected{% endif %}>PIXO</option>
+        <option value="core-beta" {% if _t == 'core-beta' %}selected{% endif %}>core-beta</option>
+      </select>
+      <small class="form-text text-muted">
+        Controls template/CSS/JS compatibility shims on module pages.
+      </small>
+    </div>
+
+    <button class="btn btn-primary mt-3" type="submit">Save</button>
+  </form>
+{% endblock %}

@@ -1,0 +1,72 @@
+:root {
+  --ctfd-modules-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ctfd-modules-fast: 160ms;
+  --ctfd-modules-med: 220ms;
+}
+
+.ctfd-modules-card {
+  transition:
+    transform var(--ctfd-modules-fast) var(--ctfd-modules-ease),
+    box-shadow var(--ctfd-modules-fast) var(--ctfd-modules-ease);
+}
+
+.ctfd-modules-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.15);
+}
+
+.ctfd-modules-card:active {
+  transform: translateY(-1px);
+}
+
+#challenge-window ~ * .challenge-button,
+.challenge-button {
+  transition:
+    background-color var(--ctfd-modules-fast) ease,
+    border-color var(--ctfd-modules-fast) ease,
+    color var(--ctfd-modules-fast) ease,
+    box-shadow var(--ctfd-modules-fast) ease;
+  position: relative;
+}
+
+.challenge-button:hover {
+  transform: none;
+  filter: none;
+}
+
+.challenge-button:active {
+  transform: none;
+  filter: none;
+}
+
+.challenge-button .corner-button-check {
+  position: absolute;
+  left: auto;
+  right: -1rem;
+  transform: none !important;
+  transition: opacity var(--ctfd-modules-fast) ease;
+}
+
+#challenge-window.modal.fade .modal-dialog {
+  transform: translateY(-8px) scale(0.995);
+  transition: transform var(--ctfd-modules-med) var(--ctfd-modules-ease);
+}
+
+#challenge-window.modal.show .modal-dialog {
+  transform: translateY(0) scale(1);
+}
+
+#challenge-window .alert {
+  transition:
+    opacity var(--ctfd-modules-fast) var(--ctfd-modules-ease),
+    max-height var(--ctfd-modules-med) var(--ctfd-modules-ease);
+}
+
+/* Keep tab transition close to Bootstrap default */
+#challenge-window .tab-pane.fade {
+  transition: opacity 0.15s linear;
+}
+
+#challenge-window .tab-pane.fade:not(.show) {
+  opacity: 0;
+}

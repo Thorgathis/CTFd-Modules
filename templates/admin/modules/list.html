@@ -1,0 +1,65 @@
+{% extends "admin/modules/_layout.html" %}
+
+{% set active_page = 'modules' %}
+
+{% block ctfd_modules_title %}Modules{% endblock %}
+
+{% block ctfd_modules_body %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="mb-0">All modules</h2>
+    <a class="btn btn-primary" href="{{ url_for('ctfd_modules_admin.admin_modules_new') }}">New module</a>
+  </div>
+
+  <form class="form-inline mt-3" method="get">
+    <label class="mr-2">Status</label>
+    <select class="form-control mr-3" name="status">
+      <option value="">All</option>
+      <option value="public" {% if request.args.get('status') == 'public' %}selected{% endif %}>public</option>
+      <option value="private" {% if request.args.get('status') == 'private' %}selected{% endif %}>private</option>
+      <option value="locked" {% if request.args.get('status') == 'locked' %}selected{% endif %}>locked</option>
+    </select>
+
+    <label class="mr-2">Category</label>
+    <select class="form-control mr-3" name="category">
+      <option value="">All</option>
+      {% for c in categories %}
+        <option value="{{ c }}" {% if request.args.get('category') == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+
+    <button class="btn btn-secondary" type="submit">Filter</button>
+  </form>
+
+  <table class="table table-striped mt-3">
+    <thead>
+      <tr>
+        <th>Order</th>
+        <th>Name</th>
+        <th>Category</th>
+        <th>Status</th>
+        <th>Invite</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for m in modules %}
+        <tr>
+          <td>{{ m.order }}</td>
+          <td>{{ m.name }}</td>
+          <td>{{ m.category or '—' }}</td>
+          <td>{{ m.status.value }}</td>
+          <td>
+            {% if m.status.value == 'private' %}
+              <code>{{ m.invite_code }}</code>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="text-right">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ctfd_modules_admin.admin_modules_edit', module_id=m.id) }}">Edit</a>
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

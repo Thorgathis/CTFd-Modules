@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+  {{ super() if super is defined else '' }}
+  <link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css?v=hover-fix-4">
+  {% if (ctfd_modules_ui_theme or 'auto') == 'pixo' %}
+    <link rel="stylesheet" href="{{ url_for('views.themes', path='css/challenge-board.css') }}">
+  {% endif %}
+{% endblock %}
+
+{% block styles %}
+  {{ super() if super is defined else '' }}
+  <link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css?v=hover-fix-4">
+  {% if (ctfd_modules_ui_theme or 'auto') == 'pixo' %}
+    <link rel="stylesheet" href="{{ url_for('views.themes', path='css/challenge-board.css') }}">
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <div class="jumbotron">
+    <div class="container">
+      <h1 class="mb-0">{{ module.name }}</h1>
+      {% if module.category %}
+        <div class="text-muted lead mb-0">{{ module.category }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="row">
+      <div class="col-md-12">
+        {% include "components/errors.html" ignore missing %}
+      </div>
+    </div>
+
+    <div
+      x-data="ChallengeBoard"
+      @load-challenges.window="loadChallenges()"
+      @load-challenge.window="loadChallenge($event.detail)"
+    >
+      <div
+        x-ref="challengeWindow" id="challenge-window" class="modal fade" tabindex="-1" role="dialog" x-data=""
+        x-html="$store.challenge.data.view"
+      ></div>
+
+      <div x-show="!loaded">
+        <div class="min-vh-50 d-flex align-items-center">
+          <div class="text-center w-100">
+            <i class="fas fa-circle-notch fa-spin fa-3x fa-fw spinner"></i>
+          </div>
+        </div>
+      </div>
+
+      <div x-show="loaded">
+        <div x-cloak x-show="(window.CTFD_MODULES_ALLOWED_CHALLENGE_IDS || []).length === 0" class="alert alert-secondary">
+          This module has no challenges yet.
+        </div>
+
+        <template x-for="(category, idx) in getCategories()" :key="idx">
+          <div class="pt-5" x-show="(getChallenges(category) || []).some((c) => (window.CTFD_MODULES_ALLOWED_CHALLENGE_IDS || []).includes(c.id))">
+            <div class="category-header mb-3">
+              <h3 x-text="category"></h3>
+            </div>
+
+            <div class="category-challenges col-md-12">
+              <div class="challenges-row">
+                <template x-for="(c, idx) in getChallenges(category)" :key="c.id">
+                  <div class="col-md-3 d-inline-block" :id="String(c.id)" x-show="(window.CTFD_MODULES_ALLOWED_CHALLENGE_IDS || []).includes(c.id)">
+                    <button
+                      class="btn btn-dark challenge-button w-100 text-truncate pt-3 pb-3 mb-2"
+                      :class="[
+                        c.solved_by_me ? 'solved-challenge challenge-solved' : '',
+                        ...c.tags.map((tag) => `tag-${tag.value.replace(/ /g, '-')}`),
+                      ]"
+                      :value="c.id" @click="window.CTFD_MODULES_ACTIVE_CHALLENGE_ID = c.id; loadChallenge(c.id)"
+                    >
+                      <i class="fas fa-check corner-button-check" x-show="c.solved_by_me"></i>
+                      <p x-text="c.name"></p>
+                      <span x-text="c.value"></span>
+                    </button>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+  </div>
+    <script>
+      // Ensure module pages don't get "main board" filtering.
+      // Server still applies security filtering for private/locked modules.
+      (function () {
+        const moduleId = {{ (module.id if module is defined else none) | tojson }}
+        const originalFetch = window.fetch
+        if (!originalFetch) {
+          return
+        }
+
+        window.fetch = function (input, init) {
+          try {
+            const url = typeof input === "string" ? input : (input && input.url) ? input.url : ""
+            if (url && url.indexOf("/api/v1/challenges") !== -1) {
+              const absolute = new URL(url, window.location.origin)
+              if (absolute.pathname === "/api/v1/challenges") {
+                absolute.searchParams.set("ctfd_modules", "1")
+                if (moduleId) {
+                  absolute.searchParams.set("module_id", String(moduleId))
+                }
+                if (typeof input === "string") {
+                  input = absolute.toString()
+                } else {
+                  input = new Request(absolute.toString(), input)
+                }
+              }
+            }
+          } catch (e) {
+            // If anything goes wrong, fall back to default fetch.
+          }
+          return originalFetch(input, init)
+        }
+      })()
+    </script>
+{% endblock %}
+
+{% block scripts %}
+  <script>
+    window.CTFD_MODULES_ALLOWED_CHALLENGE_IDS = {{ (challenge_ids or []) | tojson }};
+  </script>
+
+  <script>
+    window.CTFD_MODULES_UI_THEME = {{ (ctfd_modules_ui_theme or 'auto') | tojson }};
+  </script>
+
+  {% if Assets is defined %}
+    {{ Assets.js("assets/js/challenges.js") }}
+  {% endif %}
+
+  <script src="/plugins/ctfd_modules/static/js/module_attempt_compat.js?v=solves-fix-6"></script>
+{% endblock %}

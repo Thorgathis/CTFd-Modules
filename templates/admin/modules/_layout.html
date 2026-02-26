@@ -1,0 +1,51 @@
+{% extends "admin/base.html" %}
+
+{% block stylesheets %}
+  {{ super() if super is defined else '' }}
+  {% block ctfd_modules_stylesheets %}{% endblock %}
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>{% block ctfd_modules_title %}Modules{% endblock %}</h1>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-3">
+      <ul class="nav nav-pills flex-column">
+        <li class="nav-item">
+          <a class="nav-link rounded-0 {% if active_page == 'modules' %}active{% endif %}"
+             href="{{ url_for('ctfd_modules_admin.admin_modules_list') }}">
+            Modules
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link rounded-0 {% if active_page == 'categories' %}active{% endif %}"
+             href="{{ url_for('ctfd_modules_admin.admin_module_categories_list') }}">
+            Categories
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link rounded-0 {% if active_page == 'settings' %}active{% endif %}"
+             href="{{ url_for('ctfd_modules_admin.admin_modules_settings') }}">
+            Settings
+          </a>
+        </li>
+      </ul>
+    </div>
+
+    <div class="col-md-9">
+      {% include "components/errors.html" ignore missing %}
+      {% block ctfd_modules_body %}{% endblock %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+  {{ super() if super is defined else '' }}
+  {% block ctfd_modules_scripts %}{% endblock %}
+{% endblock %}

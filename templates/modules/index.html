@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{{ super() if super is defined else '' }}
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/modules.css">
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
+{% endblock %}
+
+{% block styles %}
+{{ super() if super is defined else '' }}
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/modules.css">
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>Modules</h1>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-12">
+      {% include "components/errors.html" ignore missing %}
+    </div>
+  </div>
+
+  {% for category, items in grouped %}
+  <div class="row">
+    <div class="col-md-12">
+      <div class="pt-5">
+        <div class="category-header mb-3">
+          <h3>{{ category }}</h3>
+        </div>
+
+        <div class="row">
+          {% for item in items %}
+          {% set m = item.module %}
+          {% set p = item.progress %}
+          {% set is_complete = (item.has_access and p.total and p.solved >= p.total) %}
+          <div class="col-sm-6 col-md-3 my-3">
+            <a href="{{ url_for('ctfd_modules.module_view', module_id=m.id) }}" class="text-decoration-none">
+              <div class="card h-100 ctfd-modules-card {% if is_complete %}ctfd-modules-card--complete{% endif %}">
+                {% if m.banner_url %}
+                <img class="card-img-top" src="{{ m.banner_url }}" alt="banner">
+                {% endif %}
+                <div class="card-body">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <h5 class="card-title mb-0">{{ m.name }}</h5>
+                      {% if m.category %}
+                      <div class="text-muted small mt-1">{{ m.category }}</div>
+                      {% endif %}
+                    </div>
+                  </div>
+
+                  {% if item.has_access %}
+                  <div class="d-flex justify-content-between align-items-center mt-2">
+                    <div class="small {% if is_complete %}text-white{% else %}text-muted{% endif %}">
+                      {{ p.solved }} / {{ p.total }}
+                    </div>
+                    <div class="small {% if is_complete %}text-white{% else %}text-muted{% endif %}">
+                      {{ p.percent }}%
+                    </div>
+                  </div>
+
+                  <div class="progress mt-2 ctfd-modules-progress">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ p.percent }}%"
+                      aria-valuenow="{{ p.percent }}" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                  {% else %}
+                  <p class="card-text mt-2 mb-0 text-muted">Access required</p>
+                  {% endif %}
+                </div>
+              </div>
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

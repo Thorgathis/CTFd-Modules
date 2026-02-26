@@ -1,0 +1,35 @@
+.ctfd-modules-card {
+  border-radius: 0.5rem;
+}
+
+.ctfd-modules-card--complete {
+  background: #198754;
+  border-color: #198754;
+}
+
+.ctfd-modules-card--complete .card-body,
+.ctfd-modules-card--complete .card-title {
+  color: #fff;
+}
+
+.ctfd-modules-card--complete .text-muted {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.ctfd-modules-card--complete .card-img-top {
+  filter: saturate(0.9) brightness(0.9);
+}
+
+.ctfd-modules-progress {
+  height: 0.5rem;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ctfd-modules-card .card-img-top {
+  height: 110px;
+  object-fit: cover;
+}
+
+.ctfd-modules-card .card-title {
+  line-height: 1.2;
+}

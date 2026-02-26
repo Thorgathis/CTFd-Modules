@@ -1,0 +1,38 @@
+{% extends "admin/modules/_layout.html" %}
+
+{% set active_page = 'categories' %}
+
+{% block ctfd_modules_title %}Module categories{% endblock %}
+
+{% block ctfd_modules_body %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="mb-0">All categories</h2>
+    <a class="btn btn-primary" href="{{ url_for('ctfd_modules_admin.admin_module_categories_new') }}">New category</a>
+  </div>
+
+      <table class="table table-striped mt-3">
+        <thead>
+          <tr>
+            <th>Order</th>
+            <th>Name</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in categories %}
+            <tr>
+              <td>{{ c.order }}</td>
+              <td>{{ c.name }}</td>
+              <td class="text-right">
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('ctfd_modules_admin.admin_module_categories_edit', category_id=c.id) }}">Edit</a>
+                <form class="d-inline" method="post" action="{{ url_for('ctfd_modules_admin.admin_module_categories_delete', category_id=c.id) }}" onsubmit="return confirm('Delete this category? Modules will be detached.');">
+                  <input type="hidden" name="nonce" value="{{ (nonce if nonce is defined else '') or ctfd_modules_nonce() }}">
+                  <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+{% endblock %}

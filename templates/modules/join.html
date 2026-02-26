@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block stylesheets %}
+{{ super() if super is defined else '' }}
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/modules.css">
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
+{% endblock %}
+
+{% block styles %}
+{{ super() if super is defined else '' }}
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/modules.css">
+<link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
+{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+  <div class="container">
+    <h1>Join Module</h1>
+    <p class="lead mb-0 text-muted">Enter an invite code to access a private module.</p>
+  </div>
+</div>
+
+<div class="container">
+  <div class="row">
+    <div class="col-md-12">
+      {% include "components/errors.html" ignore missing %}
+    </div>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-sm-10 col-md-8 col-lg-6 my-3">
+      <div class="card ctfd-modules-card">
+        <div class="card-body">
+          <h5 class="card-title mb-1">Invite Code</h5>
+          <p class="text-muted small mb-3">Use the code provided by your organizer.</p>
+
+          <form method="post">
+            <input type="hidden" name="nonce" value="{{ (nonce if nonce is defined else '') or ctfd_modules_nonce() }}">
+            <div class="form-group">
+              <label>Invite code</label>
+              <input class="form-control" name="invite_code" placeholder="MOD-XXXXXXXX" value="{{ prefill or '' }}">
+            </div>
+            <button class="btn btn-primary" type="submit">Join</button>
+            <a class="btn btn-link" href="{{ url_for('ctfd_modules.modules_index') }}">Cancel</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
