@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from werkzeug.exceptions import HTTPException
 
-from CTFd.models import db
+from CTFd.models import Solves, db
 from CTFd.utils.decorators import ratelimit
 from CTFd.utils.user import get_current_user
 
-from .models import Module, ModuleStatus
+from .models import Module, ModuleChallenge, ModuleStatus
 from .compat import csrf_protect
 from .utils import (
     can_view_module,
@@ -19,6 +20,16 @@ from .utils import (
     ordered_modules_query,
     ordered_category_names,
 )
+
+try:
+    from CTFd.utils.config import is_teams_mode
+except Exception:
+    is_teams_mode = None
+
+try:
+    from CTFd.utils.user import get_current_team
+except Exception:
+    get_current_team = None
 
 
 modules_bp = Blueprint("ctfd_modules", __name__, template_folder="templates", static_folder="static")
@@ -45,6 +56,98 @@ def _ensure_modules_enabled():
         abort(404)
 
 
+def _extract_payload(result):
+    if isinstance(result, tuple):
+        body = result[0]
+    else:
+        body = result
+
+    if hasattr(body, "get_json"):
+        try:
+            body = body.get_json(silent=True)
+        except Exception:
+            body = None
+
+    return body if isinstance(body, dict) else None
+
+
+def _extract_challenge_rows(payload):
+    if not isinstance(payload, dict):
+        return []
+
+    data_root = payload.get("data")
+    if isinstance(data_root, list):
+        return data_root
+
+    if isinstance(data_root, dict):
+        for key in ("challenges", "results", "items", "data"):
+            rows = data_root.get(key)
+            if isinstance(rows, list):
+                return rows
+
+    return []
+
+
+def _visible_challenge_ids_for_current_user(challenge_ids: set[int]) -> set[int] | None:
+    if not challenge_ids:
+        return set()
+
+    try:
+        from CTFd.api.v1.challenges import ChallengeList as ChallengeListResource
+    except Exception:
+        return None
+
+    visible_ids: set[int] = set()
+    checker = ChallengeListResource()
+
+    try:
+        payload = _extract_payload(checker.get({}))
+    except TypeError:
+        payload = _extract_payload(checker.get())
+    except HTTPException:
+        return None
+    except Exception:
+        return None
+
+    if not payload or payload.get("success") is not True:
+        return None
+
+    for row in _extract_challenge_rows(payload):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("type", "")).lower() == "hidden":
+            continue
+        try:
+            challenge_id = int(row.get("id"))
+        except Exception:
+            continue
+        if challenge_id in challenge_ids:
+            visible_ids.add(challenge_id)
+
+    return visible_ids
+
+
+def _solve_ids_for_user(user, allowed_challenge_ids: set[int]) -> set[int]:
+    if not user or not allowed_challenge_ids:
+        return set()
+
+    q = db.session.query(Solves.challenge_id).filter(Solves.challenge_id.in_(list(allowed_challenge_ids)))
+
+    try:
+        if is_teams_mode and is_teams_mode() and get_current_team:
+            team = get_current_team()
+            if team:
+                q = q.filter(Solves.team_id == team.id)
+            else:
+                q = q.filter(Solves.user_id == user.id)
+        else:
+            q = q.filter(Solves.user_id == user.id)
+    except Exception:
+        q = q.filter(Solves.user_id == user.id)
+
+    return {challenge_id for (challenge_id,) in q.all()}
+
+
 @modules_bp.route("/modules")
 def modules_index():
     _ensure_modules_enabled()
@@ -67,11 +170,54 @@ def modules_index():
         or (m.status == ModuleStatus.private and user_has_module_access(user, m))
     ]
 
+    module_ids = [m.id for m in visible]
+    challenge_ids_by_module: dict[int, list[int]] = {}
+    if module_ids:
+        rows = (
+            db.session.query(ModuleChallenge.module_id, ModuleChallenge.challenge_id)
+            .filter(ModuleChallenge.module_id.in_(module_ids))
+            .all()
+        )
+        for module_id, challenge_id in rows:
+            if module_id not in challenge_ids_by_module:
+                challenge_ids_by_module[module_id] = []
+            challenge_ids_by_module[module_id].append(challenge_id)
+
+    all_module_challenge_ids = {
+        challenge_id
+        for ids in challenge_ids_by_module.values()
+        for challenge_id in ids
+    }
+
+    visible_challenge_ids = _visible_challenge_ids_for_current_user(all_module_challenge_ids)
+    if visible_challenge_ids is None:
+        visible_challenge_ids = set()
+
+    solved_ids = _solve_ids_for_user(user, visible_challenge_ids)
+
     cards = []
     for m in visible:
         has_access = user_has_module_access(user, m)
-        prog = module_progress(user, m) if has_access else {"solved": 0, "total": 0, "percent": 0}
-        cards.append({"module": m, "has_access": has_access, "progress": prog})
+        module_challenge_ids = challenge_ids_by_module.get(m.id, [])
+        available_ids = [challenge_id for challenge_id in module_challenge_ids if challenge_id in visible_challenge_ids]
+        if not available_ids:
+            continue
+
+        if has_access:
+            solved = sum(1 for challenge_id in available_ids if challenge_id in solved_ids)
+            total = len(available_ids)
+            percent = int((solved / total) * 100) if total else 0
+            prog = {"solved": solved, "total": total, "percent": percent}
+        else:
+            prog = {"solved": 0, "total": len(available_ids), "percent": 0}
+
+        cards.append(
+            {
+                "module": m,
+                "has_access": has_access,
+                "progress": prog,
+            }
+        )
 
     # Group by categories (with ordering from ModuleCategory).
     # Modules without a category are intentionally hidden from the public /modules list.
