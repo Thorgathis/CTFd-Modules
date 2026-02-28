@@ -99,6 +99,21 @@
     }
   }
 
+  function clearSubmissionInputs(root) {
+    try {
+      var fields = (root || document).querySelectorAll(
+        'input[name="submission"], textarea[name="submission"], input#submission,' +
+        'input[name="answer"], textarea[name="answer"], input#challenge-input, textarea#challenge-input'
+      );
+      if (!fields || !fields.length) return;
+      fields.forEach(function (el) {
+        try {
+          el.value = '';
+        } catch (_) {}
+      });
+    } catch (e) {}
+  }
+
   function setResult(root, kind, text) {
     try {
       // PIXO / core themes: reuse existing notification UI if present.
@@ -717,6 +732,9 @@
         if (modal2 && modal2.dataset) {
           delete modal2.dataset.ctfdModulesAttemptInFlight;
         }
+      } catch (_) {}
+      try {
+        clearSubmissionInputs(root || document);
       } catch (_) {}
       try {
         var modal3 = root || document;
