@@ -47,14 +47,14 @@ def _set_json_response_data(response, payload):
     return response
 
 
-def _module_for_challenge(challenge_id):
+def _modules_for_challenge(challenge_id):
     from CTFd.models import db  # type: ignore
 
     return (
         db.session.query(Module)
         .join(ModuleChallenge, ModuleChallenge.module_id == Module.id)
         .filter(ModuleChallenge.challenge_id == challenge_id)
-        .first()
+        .all()
     )
 
 
@@ -66,7 +66,10 @@ def _challenge_module_map():
         .join(Module, Module.id == ModuleChallenge.module_id)
         .all()
     )
-    return {cid: (mid, status) for (cid, mid, status) in rows}
+    out = {}
+    for cid, mid, status in rows:
+        out.setdefault(cid, []).append((mid, status))
+    return out
 
 
 def _private_module_access_map(private_module_ids):
@@ -109,6 +112,20 @@ def _assigned_challenge_ids():
     from CTFd.models import db  # type: ignore
 
     return {cid for (cid,) in db.session.query(ModuleChallenge.challenge_id).all()}
+
+
+def _challenge_accessible_via_modules(challenge_modules, allowed_private_module_ids):
+    if not challenge_modules:
+        return True
+
+    for module_id, status in challenge_modules:
+        status_value = status.value if hasattr(status, "value") else str(status)
+        if status_value == ModuleStatus.public.value:
+            return True
+        if status_value == ModuleStatus.private.value and module_id in allowed_private_module_ids:
+            return True
+
+    return False
 
 
 def register_plugin_runtime_hooks(app):
@@ -158,17 +175,20 @@ def register_plugin_runtime_hooks(app):
             if not challenge_id:
                 return None
 
-            module = _module_for_challenge(challenge_id)
-            if module is None:
+            modules = _modules_for_challenge(challenge_id)
+            if not modules:
                 return None
 
-            if module.status == ModuleStatus.locked:
-                abort(403)
+            user = get_current_user()
+            allowed_private_ids = set()
+            for module in modules:
+                status_value = module.status.value if hasattr(module.status, "value") else str(module.status)
+                if status_value == ModuleStatus.private.value and user_has_module_access(user, module):
+                    allowed_private_ids.add(module.id)
 
-            if module.status == ModuleStatus.private:
-                user = get_current_user()
-                if not user_has_module_access(user, module):
-                    abort(403)
+            challenge_modules = [(module.id, module.status) for module in modules]
+            if not _challenge_accessible_via_modules(challenge_modules, allowed_private_ids):
+                abort(403)
         except HTTPException:
             raise
         except Exception:
@@ -198,11 +218,12 @@ def register_plugin_runtime_hooks(app):
             return response
 
         try:
-            challenge_to_module = _challenge_module_map()
+            challenge_to_modules = _challenge_module_map()
             private_module_ids = {
                 module_id
-                for (_, (module_id, status)) in challenge_to_module.items()
-                if status == ModuleStatus.private
+                for challenge_modules in challenge_to_modules.values()
+                for (module_id, status) in challenge_modules
+                if (status.value if hasattr(status, "value") else str(status)) == ModuleStatus.private.value
             }
             allowed_private_module_ids = _private_module_access_map(private_module_ids)
 
@@ -212,14 +233,12 @@ def register_plugin_runtime_hooks(app):
                 if challenge_id is None:
                     continue
 
-                if challenge_id not in challenge_to_module:
+                if challenge_id not in challenge_to_modules:
                     secured.append(challenge)
                     continue
 
-                module_id, status = challenge_to_module[challenge_id]
-                if status == ModuleStatus.locked:
-                    continue
-                if status == ModuleStatus.private and module_id not in allowed_private_module_ids:
+                challenge_modules = challenge_to_modules[challenge_id]
+                if not _challenge_accessible_via_modules(challenge_modules, allowed_private_module_ids):
                     continue
                 secured.append(challenge)
 

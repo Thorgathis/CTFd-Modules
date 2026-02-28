@@ -207,30 +207,62 @@ def api_modules_assign_challenge():
 
     body = request.get_json(silent=True) or {}
     challenge_id = body.get("challenge_id")
-    module_id = body.get("module_id")
     try:
         challenge_id = int(challenge_id)
-        module_id = int(module_id)
     except Exception:
         return jsonify({"success": False, "error": "INVALID_PAYLOAD"}), 400
 
-    # Validate existence
+    raw_module_ids = body.get("module_ids")
+    module_ids: list[int] = []
+    if isinstance(raw_module_ids, list):
+        for value in raw_module_ids:
+            try:
+                module_ids.append(int(value))
+            except Exception:
+                continue
+    elif body.get("module_id") not in (None, ""):
+        try:
+            module_ids = [int(body.get("module_id"))]
+        except Exception:
+            return jsonify({"success": False, "error": "INVALID_PAYLOAD"}), 400
+
+    module_ids = list(dict.fromkeys([mid for mid in module_ids if mid > 0]))
+
     if not Challenges.query.get(challenge_id):
         return jsonify({"success": False, "error": "CHALLENGE_NOT_FOUND"}), 404
-    if not Module.query.get(module_id):
+
+    if not module_ids and "module_ids" in body:
+        ModuleChallenge.query.filter_by(challenge_id=challenge_id).delete()
+        db.session.commit()
+        return jsonify({"success": True, "data": {"challenge_id": challenge_id, "module_ids": []}})
+
+    if not module_ids:
+        return jsonify({"success": False, "error": "INVALID_PAYLOAD"}), 400
+
+    # Validate existence
+    existing_modules = {
+        mid
+        for (mid,) in db.session.query(Module.id).filter(Module.id.in_(module_ids)).all()
+    }
+    if len(existing_modules) != len(module_ids):
         return jsonify({"success": False, "error": "MODULE_NOT_FOUND"}), 404
 
-    # One-to-many mapping: ensure at most one module per challenge.
-    from .models import ModuleChallenge
+    if isinstance(raw_module_ids, list):
+        ModuleChallenge.query.filter_by(challenge_id=challenge_id).delete()
 
-    row = ModuleChallenge.query.filter_by(challenge_id=challenge_id).first()
-    if row:
-        row.module_id = module_id
-    else:
+    existing_links = {
+        mid
+        for (mid,) in db.session.query(ModuleChallenge.module_id)
+        .filter(ModuleChallenge.challenge_id == challenge_id)
+        .all()
+    }
+    for module_id in module_ids:
+        if module_id in existing_links:
+            continue
         db.session.add(ModuleChallenge(challenge_id=challenge_id, module_id=module_id))
 
     db.session.commit()
-    return jsonify({"success": True})
+    return jsonify({"success": True, "data": {"challenge_id": challenge_id, "module_ids": module_ids}})
 
 
 @modules_api_bp.route("/unassign", methods=["POST"])
@@ -252,9 +284,16 @@ def api_modules_unassign_challenge():
     except Exception:
         return jsonify({"success": False, "error": "INVALID_PAYLOAD"}), 400
 
-    from .models import ModuleChallenge
+    module_id = body.get("module_id")
+    if module_id in (None, ""):
+        ModuleChallenge.query.filter_by(challenge_id=challenge_id).delete()
+    else:
+        try:
+            module_id = int(module_id)
+        except Exception:
+            return jsonify({"success": False, "error": "INVALID_PAYLOAD"}), 400
+        ModuleChallenge.query.filter_by(challenge_id=challenge_id, module_id=module_id).delete()
 
-    ModuleChallenge.query.filter_by(challenge_id=challenge_id).delete()
     db.session.commit()
     return jsonify({"success": True})
 
@@ -270,16 +309,19 @@ def api_modules_challenge_mapping(challenge_id: int):
     if not user or getattr(user, "type", None) != "admin":
         return _forbidden_response()
 
-    row = ModuleChallenge.query.filter_by(challenge_id=challenge_id).first()
-    module = Module.query.get(row.module_id) if row else None
+    rows = ModuleChallenge.query.filter_by(challenge_id=challenge_id).all()
+    module_ids = sorted({row.module_id for row in rows})
+    modules = Module.query.filter(Module.id.in_(module_ids)).order_by(Module.name.asc()).all() if module_ids else []
 
     return jsonify(
         {
             "success": True,
             "data": {
                 "challenge_id": challenge_id,
-                "module_id": (row.module_id if row else None),
-                "module_name": (module.name if module else None),
+                "module_ids": module_ids,
+                "modules": [{"id": module.id, "name": module.name} for module in modules],
+                "module_id": (module_ids[0] if module_ids else None),
+                "module_name": (modules[0].name if modules else None),
             },
         }
     )
@@ -289,11 +331,11 @@ def api_modules_challenge_mapping(challenge_id: int):
 @authed_only
 @csrf_protect
 def api_modules_bulk_assign_challenges():
-    """Assign or unassign module for multiple challenges.
+    """Add or unassign module mapping for multiple challenges.
 
     Payload:
       - challenge_ids: list[int]
-      - module_id: int | null | ""  (empty/null -> unassign)
+      - module_id: int | null | ""  (empty/null -> unassign all mappings)
     """
 
     disabled = _ensure_modules_enabled()
@@ -354,15 +396,16 @@ def api_modules_bulk_assign_challenges():
         db.session.commit()
         return jsonify({"success": True, "data": {"updated": len(existing_ids), "module_id": None}})
 
-    # Upsert mapping for one-to-many relation
-    rows = ModuleChallenge.query.filter(ModuleChallenge.challenge_id.in_(list(existing_ids))).all()
-    seen = set()
-    for row in rows:
-        row.module_id = module_id
-        seen.add(row.challenge_id)
-
-    missing = [cid for cid in existing_ids if cid not in seen]
-    for cid in missing:
+    rows = (
+        db.session.query(ModuleChallenge.challenge_id)
+        .filter(ModuleChallenge.challenge_id.in_(list(existing_ids)))
+        .filter(ModuleChallenge.module_id == module_id)
+        .all()
+    )
+    already_linked = {cid for (cid,) in rows}
+    for cid in existing_ids:
+        if cid in already_linked:
+            continue
         db.session.add(ModuleChallenge(challenge_id=cid, module_id=module_id))
 
     db.session.commit()

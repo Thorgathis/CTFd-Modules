@@ -10,9 +10,19 @@ _OLD_BLOCK_RE = re.compile(
   flags=re.DOTALL,
 )
 
+_OLD_FIELD_RE = re.compile(
+  r"\s*<div class=\"form-group\" id=\"ctfd-modules-module-field\">.*?</div>\s*",
+  flags=re.DOTALL,
+)
+
+_OLD_SCRIPT_RE = re.compile(
+  r"\s*<script src=\"/plugins/ctfd_modules/static/js/admin_challenges_patch\.js[^\"]*\"></script>\s*",
+  flags=re.IGNORECASE,
+)
+
 
 def patch_admin_challenge_form_templates(app) -> dict:
-  """Patch admin challenge create/update templates to include module selector."""
+  """Patch admin challenge create/update templates to include modules selector."""
 
   results = {"create": False, "update": False}
 
@@ -21,27 +31,34 @@ def patch_admin_challenge_form_templates(app) -> dict:
     # Blocks can conflict with other plugins or be injected twice.
     return """
   <div class=\"form-group\" id=\"ctfd-modules-module-field\">
-    <label>Module</label>
-    {% set _ctfd_modules_cur = (ctfd_modules_challenge_module_id(challenge.id) if challenge is defined else None) %}
+      {% set _ctfd_modules_cur_ids = (ctfd_modules_challenge_module_ids(challenge.id) if challenge is defined else []) %}
+    <label class=\"mb-1\" for=\"ctfd-modules-module-picker\">Modules</label>
+    <select id=\"ctfd-modules-module-picker\" class=\"form-control\">
+      <option value=\"\">— Select module —</option>
+    </select>
+    <div id=\"ctfd-modules-tags\" class=\"my-2\"></div>
+    <small id=\"ctfd-modules-module-status\" class=\"form-text text-muted mt-1\"></small>
     {# IMPORTANT: no `name` attribute; otherwise CTFd will try to bind it to the Challenges model and fail. #}
-    <select class=\"form-control\" id=\"ctfd-modules-module-select\">
-    <option value=\"\">—</option>
+    <select class=\"d-none\" id=\"ctfd-modules-module-select\" multiple>
     {% for m in (ctfd_modules_all_modules() or []) %}
-      <option value=\"{{ m.id }}\" {% if _ctfd_modules_cur == m.id %}selected{% endif %}>{{ m.name }}</option>
+      <option value=\"{{ m.id }}\" data-name=\"{{ m.name|e }}\" data-category=\"{{ (m.category or 'No Category')|e }}\" {% if m.id in _ctfd_modules_cur_ids %}selected{% endif %}>{{ m.name }}</option>
     {% endfor %}
     </select>
   </div>
 
-  <script src=\"/plugins/ctfd_modules/static/js/admin_challenges_patch.js?v=admin-modules-fix-1\"></script>
+  <script src=\"/plugins/ctfd_modules/static/js/admin_challenges_patch.js\"></script>
 """
 
   def inject_module_field(src: str) -> str:
     # Self-heal older versions which wrapped the injected HTML in a Jinja block.
     # If injected multiple times, Jinja errors with "block defined twice".
     src = _OLD_BLOCK_RE.sub("\n", src)
+    # Self-heal older single-module snippets and script tags.
+    src = _OLD_FIELD_RE.sub("\n", src)
+    src = _OLD_SCRIPT_RE.sub("\n", src)
 
     # Idempotency: if already patched, don't inject again.
-    if "ctfd-modules-module-select" in src or "ctfd-modules-module-field" in src:
+    if "ctfd-modules-module-picker" in src and "ctfd-modules-tags" in src:
       return src
 
     insert = _module_field_snippet()

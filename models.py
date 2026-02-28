@@ -53,16 +53,12 @@ class ModuleAccess(db.Model):
 
 
 class ModuleChallenge(db.Model):
-    """Link table: module -> challenge.
+    """Link table: many-to-many module <-> challenge."""
 
-    Implemented as one-to-many (a challenge can belong to only one module)
-    to avoid modifying the core `challenges` table.
-    """
-
-    __tablename__ = "module_challenges"
+    __tablename__ = "module_challenge_links"
 
     challenge_id = db.Column(db.Integer, db.ForeignKey("challenges.id", ondelete="CASCADE"), primary_key=True)
-    module_id = db.Column(db.Integer, db.ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True)
+    module_id = db.Column(db.Integer, db.ForeignKey("modules.id", ondelete="CASCADE"), primary_key=True, index=True)
 
 
 class ModuleSettings(db.Model):
@@ -88,3 +84,37 @@ class ModuleSettings(db.Model):
 def db_init(app):
     with app.app_context():
         db.create_all()
+        _migrate_legacy_module_challenges()
+
+
+def _migrate_legacy_module_challenges():
+    """Copy data from legacy one-to-many table if it exists."""
+    try:
+        inspector = db.inspect(db.engine)
+        tables = set(inspector.get_table_names())
+        if "module_challenges" not in tables or "module_challenge_links" not in tables:
+            return
+
+        rows = db.session.execute(db.text("SELECT challenge_id, module_id FROM module_challenges")).fetchall()
+        if not rows:
+            return
+
+        inserted = False
+        for challenge_id, module_id in rows:
+            try:
+                cid = int(challenge_id)
+                mid = int(module_id)
+            except Exception:
+                continue
+
+            exists = ModuleChallenge.query.filter_by(challenge_id=cid, module_id=mid).first()
+            if exists:
+                continue
+
+            db.session.add(ModuleChallenge(challenge_id=cid, module_id=mid))
+            inserted = True
+
+        if inserted:
+            db.session.commit()
+    except Exception:
+        db.session.rollback()

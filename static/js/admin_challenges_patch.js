@@ -83,24 +83,38 @@
     }
   }
 
-  async function assignModule(challengeId, moduleId) {
-    return await postJson('/api/v1/modules/assign', { challenge_id: challengeId, module_id: moduleId });
+  async function setChallengeModules(challengeId, moduleIds) {
+    return await postJson('/api/v1/modules/assign', { challenge_id: challengeId, module_ids: moduleIds || [] });
   }
 
-  async function unassignModule(challengeId) {
-    return await postJson('/api/v1/modules/unassign', { challenge_id: challengeId });
-  }
-
-  async function getAssignedModuleId(challengeId) {
+  async function getAssignedModuleIds(challengeId) {
     var payload = await getJson('/api/v1/modules/challenge/' + encodeURIComponent(String(challengeId)));
     try {
-      if (!payload || payload.success !== true) return null;
+      if (!payload || payload.success !== true) return [];
       var data = payload.data || {};
-      if (data.module_id == null || data.module_id === '') return null;
-      var mid = parseInt(data.module_id, 10);
-      return isNaN(mid) ? null : mid;
+      var out = [];
+
+      if (Array.isArray(data.module_ids)) {
+        for (var i = 0; i < data.module_ids.length; i++) {
+          var id = parseInt(data.module_ids[i], 10);
+          if (!isNaN(id)) out.push(id);
+        }
+      } else if (data.module_id != null && data.module_id !== '') {
+        var mid = parseInt(data.module_id, 10);
+        if (!isNaN(mid)) out.push(mid);
+      }
+
+      var seen = {};
+      var unique = [];
+      for (var j = 0; j < out.length; j++) {
+        if (!seen[out[j]]) {
+          seen[out[j]] = true;
+          unique.push(out[j]);
+        }
+      }
+      return unique;
     } catch (e) {
-      return null;
+      return [];
     }
   }
 
@@ -119,55 +133,309 @@
   function initChallengeFormPatch() {
     var sel = document.getElementById('ctfd-modules-module-select');
     if (!sel) return;
+    var field = document.getElementById('ctfd-modules-module-field') || (sel.closest ? sel.closest('.form-group') : null);
 
-    // Prevent double-wiring.
+    if (!sel.multiple) {
+      sel.multiple = true;
+      sel.setAttribute('multiple', 'multiple');
+    }
+    if (!sel.classList.contains('d-none')) sel.classList.add('d-none');
+
+    for (var oi = 0; oi < sel.options.length; oi++) {
+      var option = sel.options[oi];
+      if (!option.dataset) continue;
+      if (!option.dataset.name) {
+        option.dataset.name = (option.textContent || '').trim();
+      }
+      if (!option.dataset.category) {
+        var rawCategory = option.getAttribute('data-category');
+        option.dataset.category = (rawCategory || 'No Category').trim() || 'No Category';
+      }
+    }
+
+    var picker = document.getElementById('ctfd-modules-module-picker');
+    if (!picker) {
+      picker = document.createElement('select');
+      picker.id = 'ctfd-modules-module-picker';
+      picker.className = 'form-control';
+      if (field) field.insertBefore(picker, sel);
+    }
+
+    var tagsRoot = document.getElementById('ctfd-modules-tags');
+    if (!tagsRoot) {
+      tagsRoot = document.createElement('div');
+      tagsRoot.id = 'ctfd-modules-tags';
+      tagsRoot.className = 'my-2';
+      if (field) field.insertBefore(tagsRoot, sel);
+    }
+
+    var statusEl = document.getElementById('ctfd-modules-module-status');
+    if (!statusEl) {
+      statusEl = document.createElement('small');
+      statusEl.id = 'ctfd-modules-module-status';
+      statusEl.className = 'form-text text-muted mt-1';
+      if (field) field.insertBefore(statusEl, sel);
+    }
+
+    function showStatus(message, isError) {
+      if (!statusEl) return;
+      statusEl.textContent = message || '';
+      statusEl.className = 'form-text mt-1 ' + (isError ? 'text-danger' : 'text-muted');
+    }
+
     if (sel.dataset.ctfdModulesWired === '1') return;
     sel.dataset.ctfdModulesWired = '1';
+    var moduleStateIds = [];
 
-    // Save pending selection on create; apply on next load (update page).
-    document.addEventListener('submit', function (e) {
-      try {
-        var form = e && e.target ? e.target : null;
-        if (!form || form.tagName !== 'FORM') return;
-        if (!form.contains(sel)) return;
-        window.localStorage.setItem('ctfd_modules_pending_module_id', sel.value || '');
-      } catch (err) {}
-    }, true);
-
-    var pending = null;
-    try {
-      pending = window.localStorage.getItem('ctfd_modules_pending_module_id');
-      if (pending === '') {
-        window.localStorage.removeItem('ctfd_modules_pending_module_id');
-        pending = null;
+    function normalizeIds(list) {
+      if (!Array.isArray(list)) return [];
+      var out = [];
+      for (var i = 0; i < list.length; i++) {
+        var id = parseInt(list[i], 10);
+        if (!isNaN(id) && id > 0) out.push(id);
       }
-      if (pending && !sel.value) sel.value = pending;
+      var seen = {};
+      var unique = [];
+      for (var j = 0; j < out.length; j++) {
+        if (!seen[out[j]]) {
+          seen[out[j]] = true;
+          unique.push(out[j]);
+        }
+      }
+      return unique;
+    }
+
+    function selectedModuleIds() {
+      return normalizeIds(moduleStateIds);
+    }
+
+    function syncSelectSelection(ids) {
+      var set = {};
+      ids = normalizeIds(ids);
+      for (var i = 0; i < ids.length; i++) set[ids[i]] = true;
+      for (var j = 0; j < sel.options.length; j++) {
+        var value = parseInt(sel.options[j].value, 10);
+        sel.options[j].selected = !!set[value];
+      }
+    }
+
+    function moduleInfoList() {
+      var rows = [];
+      for (var i = 0; i < sel.options.length; i++) {
+        var rowId = parseInt(sel.options[i].value, 10);
+        if (isNaN(rowId) || rowId <= 0) continue;
+        rows.push({
+          id: rowId,
+          name: ((sel.options[i].dataset && sel.options[i].dataset.name) || sel.options[i].textContent || '').trim() || String(rowId),
+          category: ((sel.options[i].dataset && sel.options[i].dataset.category) || 'No Category').trim() || 'No Category',
+        });
+      }
+      rows.sort(function (a, b) {
+        var catCmp = a.category.localeCompare(b.category);
+        if (catCmp !== 0) return catCmp;
+        return a.name.localeCompare(b.name);
+      });
+      return rows;
+    }
+
+    function moduleNameById(moduleId) {
+      for (var i = 0; i < sel.options.length; i++) {
+        var value = parseInt(sel.options[i].value, 10);
+        if (value === moduleId) {
+          return (sel.options[i].dataset && sel.options[i].dataset.name) || sel.options[i].textContent || String(moduleId);
+        }
+      }
+      return String(moduleId);
+    }
+
+    function renderPickerOptions() {
+      if (!picker) return;
+      picker.innerHTML = '';
+
+      var firstOption = document.createElement('option');
+      firstOption.value = '';
+      firstOption.textContent = '— Select module —';
+      picker.appendChild(firstOption);
+
+      var selectedSet = {};
+      var ids = selectedModuleIds();
+      for (var i = 0; i < ids.length; i++) selectedSet[ids[i]] = true;
+
+      var rows = moduleInfoList();
+      var groups = {};
+      var groupOrder = [];
+      for (var j = 0; j < rows.length; j++) {
+        var category = rows[j].category;
+        if (!groups[category]) {
+          groups[category] = [];
+          groupOrder.push(category);
+        }
+        groups[category].push(rows[j]);
+      }
+
+      for (var g = 0; g < groupOrder.length; g++) {
+        var groupName = groupOrder[g];
+        var optgroup = document.createElement('optgroup');
+        optgroup.label = groupName;
+
+        var groupRows = groups[groupName] || [];
+        for (var k = 0; k < groupRows.length; k++) {
+          var option = document.createElement('option');
+          option.value = String(groupRows[k].id);
+          option.textContent = groupRows[k].name;
+          if (selectedSet[groupRows[k].id]) option.disabled = true;
+          optgroup.appendChild(option);
+        }
+
+        picker.appendChild(optgroup);
+      }
+
+      picker.value = '';
+    }
+
+    function renderTags() {
+      if (!tagsRoot) return;
+      tagsRoot.innerHTML = '';
+
+      var ids = selectedModuleIds();
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        var badge = document.createElement('span');
+        badge.className = 'badge badge-primary mx-1 challenge-tag';
+
+        var label = document.createElement('span');
+        label.textContent = moduleNameById(id);
+        badge.appendChild(label);
+
+        var remove = document.createElement('a');
+        remove.className = 'btn-fa delete-tag';
+        remove.textContent = ' ×';
+        remove.href = 'javascript:void(0)';
+        remove.setAttribute('data-module-id', String(id));
+        remove.addEventListener('click', function (e) {
+          var raw = e && e.currentTarget ? e.currentTarget.getAttribute('data-module-id') : null;
+          var moduleId = parseInt(raw, 10);
+          if (isNaN(moduleId)) return;
+          var next = selectedModuleIds().filter(function (x) {
+            return x !== moduleId;
+          });
+          setSelectedModuleIds(next, true);
+        });
+        badge.appendChild(remove);
+
+        tagsRoot.appendChild(badge);
+      }
+    }
+
+    function setSelectedModuleIds(ids, emitChange) {
+      moduleStateIds = normalizeIds(ids);
+      syncSelectSelection(moduleStateIds);
+      renderPickerOptions();
+      renderTags();
+      if (emitChange) {
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    function parsePendingIds(raw) {
+      if (!raw) return [];
+      try {
+        var parsed = JSON.parse(raw);
+        return normalizeIds(parsed);
+      } catch (e) {
+        var single = parseInt(raw, 10);
+        return isNaN(single) ? [] : [single];
+      }
+    }
+
+    document.addEventListener(
+      'submit',
+      function (e) {
+        try {
+          var form = e && e.target ? e.target : null;
+          if (!form || form.tagName !== 'FORM') return;
+          if (!form.contains(sel)) return;
+          window.localStorage.setItem('ctfd_modules_pending_module_ids', JSON.stringify(selectedModuleIds()));
+        } catch (err) {}
+      },
+      true
+    );
+
+    var pending = [];
+    try {
+      pending = parsePendingIds(window.localStorage.getItem('ctfd_modules_pending_module_ids'));
+      if (!pending.length) {
+        pending = parsePendingIds(window.localStorage.getItem('ctfd_modules_pending_module_id'));
+      }
+      window.localStorage.removeItem('ctfd_modules_pending_module_id');
     } catch (e) {}
 
-    var challengeId = currentChallengeId();
+    var initialIds = pending.length
+      ? pending
+      : (function () {
+          var current = [];
+          for (var si = 0; si < sel.options.length; si++) {
+            if (!sel.options[si].selected) continue;
+            var sid = parseInt(sel.options[si].value, 10);
+            if (!isNaN(sid)) current.push(sid);
+          }
+          return current;
+        })();
+    setSelectedModuleIds(initialIds, false);
 
-    function selectedModuleId() {
-      if (!sel.value) return null;
-      var v = parseInt(sel.value, 10);
-      return isNaN(v) ? null : v;
+    if (picker) {
+      picker.addEventListener('change', function () {
+        var picked = parseInt(picker.value, 10);
+        if (isNaN(picked) || picked <= 0) {
+          picker.value = '';
+          return;
+        }
+        var next = selectedModuleIds();
+        if (next.indexOf(picked) === -1) next.push(picked);
+        setSelectedModuleIds(next, true);
+      });
     }
+
+    var challengeId = currentChallengeId();
 
     async function saveSelection(cid) {
       if (!cid) return false;
       try {
-        var moduleId = selectedModuleId();
-        if (!moduleId) {
-          await unassignModule(cid);
-        } else {
-          await assignModule(cid, moduleId);
+        var response = await setChallengeModules(cid, selectedModuleIds());
+        if (!response || !response.ok) {
+          showStatus('Failed to save modules', true);
+          return false;
         }
+        var payload = null;
+        try {
+          payload = await response.json();
+        } catch (_) {
+          payload = null;
+        }
+        if (payload && payload.success === false) {
+          showStatus('Failed to save modules', true);
+          return false;
+        }
+        showStatus('Modules saved', false);
         return true;
       } catch (e) {
+        showStatus('Failed to save modules', true);
         return false;
       }
     }
 
     sel.addEventListener('change', async function () {
+      moduleStateIds = (function () {
+        var ids = [];
+        for (var i = 0; i < sel.options.length; i++) {
+          if (!sel.options[i].selected) continue;
+          var id = parseInt(sel.options[i].value, 10);
+          if (!isNaN(id)) ids.push(id);
+        }
+        return normalizeIds(ids);
+      })();
+      renderPickerOptions();
+      renderTags();
       if (!challengeId) challengeId = await waitForChallengeId(4000);
       if (!challengeId) return;
       void saveSelection(challengeId);
@@ -177,21 +445,19 @@
       if (!challengeId) challengeId = await waitForChallengeId(4000);
       if (!challengeId) return;
 
-      // create -> redirect-to-edit flow
-      if (pending) {
-        // keep user's selected module and persist mapping once we have challenge id
-        if (!sel.value) sel.value = pending;
+      if (pending.length) {
         await saveSelection(challengeId);
         try {
-          window.localStorage.removeItem('ctfd_modules_pending_module_id');
+          window.localStorage.removeItem('ctfd_modules_pending_module_ids');
         } catch (e) {}
         return;
       }
 
-      // edit flow: pull current mapping from backend when template can't preselect it
-      if (!sel.value) {
-        var assignedId = await getAssignedModuleId(challengeId);
-        if (assignedId) sel.value = String(assignedId);
+      if (!selectedModuleIds().length) {
+        var assignedIds = await getAssignedModuleIds(challengeId);
+        if (assignedIds.length) {
+          setSelectedModuleIds(assignedIds, false);
+        }
       }
     })();
   }
@@ -294,7 +560,7 @@
       '<option value="__unassign__">— Unassign —</option>' +
       (optionsHtml || '') +
       '</select>' +
-      '<small class="form-text text-muted">No change keeps current module. Unassign removes module.</small>';
+      '<small class="form-text text-muted">Selecting module adds mapping. Unassign removes all module mappings.</small>';
 
     body.appendChild(wrap);
     return modal.querySelector('#ctfd-modules-bulk-module-select');
@@ -331,7 +597,7 @@
 
         var status = ensureBulkStatus(modal);
         status.className = 'alert alert-info mt-3';
-        status.textContent = 'Applying module…';
+        status.textContent = 'Applying module mapping…';
         status.classList.remove('d-none');
 
         var payload = { challenge_ids: ids };

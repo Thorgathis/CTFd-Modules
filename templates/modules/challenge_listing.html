@@ -2,7 +2,7 @@
 
 {% block stylesheets %}
   {{ super() if super is defined else '' }}
-  <link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css?v=hover-fix-4">
+  <link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
   {% if (ctfd_modules_ui_theme or 'auto') == 'pixo' %}
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/challenge-board.css') }}">
   {% endif %}
@@ -10,7 +10,7 @@
 
 {% block styles %}
   {{ super() if super is defined else '' }}
-  <link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css?v=hover-fix-4">
+  <link rel="stylesheet" href="/plugins/ctfd_modules/static/css/ui_smooth.css">
   {% if (ctfd_modules_ui_theme or 'auto') == 'pixo' %}
     <link rel="stylesheet" href="{{ url_for('views.themes', path='css/challenge-board.css') }}">
   {% endif %}

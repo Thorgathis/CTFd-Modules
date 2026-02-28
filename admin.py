@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import csv
-import io
-
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for, jsonify
 
-from CTFd.models import Challenges, Users, db
+from CTFd.models import Users, db
 from CTFd.utils.decorators import admins_only, ratelimit
 from CTFd.utils.user import get_current_user
 
@@ -63,25 +60,37 @@ def register_admin_menu(app):
             except Exception:
                 return []
 
+        def ctfd_modules_challenge_module_ids(challenge_id):
+            try:
+                rows = ModuleChallenge.query.filter_by(challenge_id=challenge_id).all()
+                return [row.module_id for row in rows]
+            except Exception:
+                return []
+
         def ctfd_modules_challenge_module_id(challenge_id):
             try:
-                row = ModuleChallenge.query.filter_by(challenge_id=challenge_id).first()
-                return row.module_id if row else None
+                ids = ctfd_modules_challenge_module_ids(challenge_id)
+                return ids[0] if ids else None
             except Exception:
                 return None
 
         def ctfd_modules_challenge_module_name(challenge_id):
             try:
-                row = ModuleChallenge.query.filter_by(challenge_id=challenge_id).first()
-                if not row:
+                rows = ModuleChallenge.query.filter_by(challenge_id=challenge_id).all()
+                if not rows:
                     return ""
-                m = Module.query.get(row.module_id)
-                return m.name if m else ""
+                names = []
+                for row in rows:
+                    m = Module.query.get(row.module_id)
+                    if m and m.name:
+                        names.append(m.name)
+                return ", ".join(sorted(set(names)))
             except Exception:
                 return ""
 
         return {
             "ctfd_modules_all_modules": ctfd_modules_all_modules,
+            "ctfd_modules_challenge_module_ids": ctfd_modules_challenge_module_ids,
             "ctfd_modules_challenge_module_id": ctfd_modules_challenge_module_id,
             "ctfd_modules_challenge_module_name": ctfd_modules_challenge_module_name,
         }
@@ -319,49 +328,6 @@ def admin_module_categories_delete(category_id: int):
     return redirect(url_for("ctfd_modules_admin.admin_module_categories_list"))
 
 
-@modules_admin_bp.route("/modules/<int:module_id>/challenges", methods=["GET"])
-@admins_only
-def admin_modules_manage_challenges(module_id: int):
-    module = Module.query.get_or_404(module_id)
-    q = (request.args.get("q") or "").strip()
-    category = (request.args.get("category") or "").strip()
-
-    assigned = (
-        db.session.query(Challenges)
-        .join(ModuleChallenge, ModuleChallenge.challenge_id == Challenges.id)
-        .filter(ModuleChallenge.module_id == module.id)
-        .order_by(Challenges.category.asc(), Challenges.value.asc(), Challenges.name.asc())
-        .all()
-    )
-
-    limit = 100
-    unassigned_q = (
-        db.session.query(Challenges)
-        .outerjoin(ModuleChallenge, ModuleChallenge.challenge_id == Challenges.id)
-        .filter(ModuleChallenge.challenge_id.is_(None))
-    )
-    if q:
-        unassigned_q = unassigned_q.filter(Challenges.name.ilike(f"%{q}%"))
-    if category:
-        unassigned_q = unassigned_q.filter(Challenges.category == category)
-
-    unassigned = (
-        unassigned_q.order_by(Challenges.category.asc(), Challenges.value.asc(), Challenges.name.asc())
-        .limit(limit)
-        .all()
-    )
-
-    return render_template(
-        "admin/modules/challenges.html",
-        module=module,
-        assigned=assigned,
-        unassigned=unassigned,
-        q=q,
-        category=category,
-        limit=limit,
-    )
-
-
 @modules_admin_bp.route("/modules/<int:module_id>/delete", methods=["POST"])
 @admins_only
 def admin_modules_delete(module_id: int):
@@ -489,100 +455,3 @@ def admin_users_search():
 
     return jsonify({"success": True, "data": data})
 
-
-@modules_admin_bp.route("/modules/<int:module_id>/challenges/assign", methods=["POST"])
-@admins_only
-def admin_modules_challenges_assign(module_id: int):
-    module = Module.query.get_or_404(module_id)
-    challenge_id = request.form.get("challenge_id")
-    try:
-        cid = int(challenge_id)
-    except Exception:
-        flash("Invalid challenge_id", "danger")
-        return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-    if not Challenges.query.get(cid):
-        flash("Challenge not found", "danger")
-        return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-    # One-to-many: remove any previous module mapping for this challenge
-    ModuleChallenge.query.filter_by(challenge_id=cid).delete()
-    db.session.add(ModuleChallenge(challenge_id=cid, module_id=module.id))
-    db.session.commit()
-
-    flash("Challenge assigned", "success")
-    return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-
-@modules_admin_bp.route("/modules/<int:module_id>/challenges/unassign", methods=["POST"])
-@admins_only
-def admin_modules_challenges_unassign(module_id: int):
-    module = Module.query.get_or_404(module_id)
-    challenge_id = request.form.get("challenge_id")
-    try:
-        cid = int(challenge_id)
-    except Exception:
-        flash("Invalid challenge_id", "danger")
-        return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-    ModuleChallenge.query.filter_by(challenge_id=cid, module_id=module.id).delete()
-    db.session.commit()
-
-    flash("Challenge unassigned", "success")
-    return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-
-@modules_admin_bp.route("/modules/<int:module_id>/bulk/by-category", methods=["POST"])
-@admins_only
-def admin_modules_bulk_by_category(module_id: int):
-    module = Module.query.get_or_404(module_id)
-    category = (request.form.get("category") or "").strip()
-    if not category:
-        flash("Please provide a category", "danger")
-        return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-    challenges = Challenges.query.filter_by(category=category).all()
-    for c in challenges:
-        ModuleChallenge.query.filter_by(challenge_id=c.id).delete()
-        db.session.add(ModuleChallenge(challenge_id=c.id, module_id=module.id))
-
-    db.session.commit()
-    flash(f"Challenges assigned: {len(challenges)}", "success")
-    return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-
-@modules_admin_bp.route("/modules/<int:module_id>/bulk/csv", methods=["POST"])
-@admins_only
-def admin_modules_bulk_csv(module_id: int):
-    module = Module.query.get_or_404(module_id)
-
-    f = request.files.get("csv")
-    if not f:
-        flash("Please upload a CSV file", "danger")
-        return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-    try:
-        raw = f.read().decode("utf-8")
-    except Exception:
-        flash("Unable to read CSV", "danger")
-        return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))
-
-    reader = csv.DictReader(io.StringIO(raw))
-    updated = 0
-    for row in reader:
-        try:
-            cid = int(row.get("challenge_id"))
-            mid = int(row.get("module_id"))
-        except Exception:
-            continue
-
-        if not Challenges.query.get(cid) or not Module.query.get(mid):
-            continue
-
-        ModuleChallenge.query.filter_by(challenge_id=cid).delete()
-        db.session.add(ModuleChallenge(challenge_id=cid, module_id=mid))
-        updated += 1
-
-    db.session.commit()
-    flash(f"Updated mappings: {updated}", "success")
-    return redirect(url_for("ctfd_modules_admin.admin_modules_edit", module_id=module.id))

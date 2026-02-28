@@ -4,6 +4,16 @@ import re
 
 from .template_override import override_template_source
 
+_OLD_BULK_TEMPLATE_RE = re.compile(
+    r"\s*<template id=\"ctfd-modules-bulk-module-options\">.*?</template>\s*",
+    flags=re.DOTALL,
+)
+
+_OLD_PATCH_SCRIPT_RE = re.compile(
+    r"\s*<script src=\"/plugins/ctfd_modules/static/js/admin_challenges_patch\.js[^\"]*\"></script>\s*",
+    flags=re.IGNORECASE,
+)
+
 
 def patch_admin_challenge_listing_templates(app) -> dict:
     """Patch admin challenge listing template to show Module + bulk assignment."""
@@ -17,11 +27,14 @@ def patch_admin_challenge_listing_templates(app) -> dict:
         src2 = src2.replace("\\1\n<script>", "\n<script>").replace("\\1<script>", "<script>")
         if "\\1" in src2:
             src2 = src2.replace("\\1\n", "\n").replace("\\1", "")
+        # Self-heal old template/script injections.
+        src2 = _OLD_BULK_TEMPLATE_RE.sub("\n", src2)
+        src2 = _OLD_PATCH_SCRIPT_RE.sub("\n", src2)
 
         # Header insert before Category
         src2 = re.sub(
             r"<th class=\"sort-col\">\s*<b>Category</b>\s*</th>",
-            '<th class="sort-col"><b>Module</b></th>\\n\\g<0>',
+            '<th class="sort-col"><b>Modules</b></th>\\n\\g<0>',
             src2,
             count=1,
         )
@@ -36,12 +49,12 @@ def patch_admin_challenge_listing_templates(app) -> dict:
 
         # Bulk module assignment inside the existing CTFd bulk-edit modal.
         # We inject only a <template> with module options and the JS loader.
-        if "ctfd-modules-bulk-module-options" not in src2 and "admin_challenges_patch.js" not in src2:
+        if "ctfd-modules-bulk-module-options" not in src2:
             inject = """
 <template id=\"ctfd-modules-bulk-module-options\">
   {% for m in (ctfd_modules_all_modules() or []) %}<option value=\"{{ m.id }}\">{{ m.name|e }}</option>{% endfor %}
 </template>
-<script src=\"/plugins/ctfd_modules/static/js/admin_challenges_patch.js?v=admin-modules-fix-1\"></script>
+<script src=\"/plugins/ctfd_modules/static/js/admin_challenges_patch.js\"></script>
 """
 
             def _after_table(m):
