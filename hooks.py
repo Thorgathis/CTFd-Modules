@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import re
 
-from flask import abort, redirect, request
+from flask import abort, g, redirect, request
 from werkzeug.exceptions import HTTPException
 
 from CTFd.utils.user import get_current_user
@@ -128,6 +128,115 @@ def _challenge_accessible_via_modules(challenge_modules, allowed_private_module_
     return False
 
 
+def _parse_module_ids_payload(raw):
+    if raw is None:
+        return None
+
+    values = None
+    if isinstance(raw, list):
+        values = raw
+    elif isinstance(raw, str):
+        text = raw.strip()
+        if text == "":
+            return []
+        try:
+            decoded = json.loads(text)
+            values = decoded if isinstance(decoded, list) else [decoded]
+        except Exception:
+            values = [part.strip() for part in text.split(",")]
+    else:
+        values = [raw]
+
+    out = []
+    seen = set()
+    for item in values:
+        try:
+            mid = int(item)
+        except Exception:
+            continue
+        if mid <= 0 or mid in seen:
+            continue
+        seen.add(mid)
+        out.append(mid)
+    return out
+
+
+def _requested_challenge_module_ids():
+    staged = getattr(g, "ctfd_modules_requested_module_ids", None)
+    if staged is not None:
+        return _parse_module_ids_payload(staged)
+
+    if "ctfd_modules_module_ids" in request.form:
+        return _parse_module_ids_payload(request.form.get("ctfd_modules_module_ids"))
+
+    body = request.get_json(silent=True) or {}
+    if isinstance(body, dict) and "ctfd_modules_module_ids" in body:
+        return _parse_module_ids_payload(body.get("ctfd_modules_module_ids"))
+
+    return None
+
+
+def _challenge_id_from_write_response(response):
+    try:
+        ctype = (response.headers.get("Content-Type") or "").lower()
+        if "application/json" not in ctype:
+            return None
+        payload = json.loads(response.get_data(as_text=True) or "{}")
+    except Exception:
+        return None
+
+    if not isinstance(payload, dict):
+        return None
+
+    cid = _challenge_id(payload)
+    if cid:
+        return cid
+
+    data = payload.get("data")
+    cid = _challenge_id(data)
+    if cid:
+        return cid
+
+    if isinstance(data, dict):
+        for key in ("challenge", "result", "item"):
+            cid = _challenge_id(data.get(key))
+            if cid:
+                return cid
+
+    return None
+
+
+def _apply_challenge_module_ids(challenge_id: int, module_ids: list[int]):
+    from CTFd.models import Challenges, db  # type: ignore
+
+    if not Challenges.query.get(challenge_id):
+        return
+
+    normalized = []
+    seen = set()
+    for mid in module_ids or []:
+        try:
+            value = int(mid)
+        except Exception:
+            continue
+        if value <= 0 or value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+
+    if normalized:
+        existing = {
+            mid
+            for (mid,) in db.session.query(Module.id).filter(Module.id.in_(normalized)).all()
+        }
+        normalized = [mid for mid in normalized if mid in existing]
+
+    ModuleChallenge.query.filter_by(challenge_id=challenge_id).delete()
+    for module_id in normalized:
+        db.session.add(ModuleChallenge(challenge_id=challenge_id, module_id=module_id))
+    db.session.commit()
+
+
 def register_plugin_runtime_hooks(app):
     @app.context_processor
     def ctfd_modules_inject_nonce():
@@ -135,6 +244,41 @@ def register_plugin_runtime_hooks(app):
             "ctfd_modules_nonce": ctfd_generate_nonce,
             "ctfd_modules_ui_theme": get_ui_theme(),
         }
+
+    @app.before_request
+    def ctfd_modules_stage_challenge_write_payload():
+        try:
+            if not modules_enabled():
+                return None
+
+            user = get_current_user()
+            if not user or getattr(user, "type", None) != "admin":
+                return None
+
+            method = (request.method or "").upper()
+            path = request.path or ""
+            create_write = method == "POST" and path == "/api/v1/challenges"
+            update_write = bool(re.match(r"^/api/v1/challenges/\d+$", path)) and method in {"POST", "PUT", "PATCH"}
+            if not create_write and not update_write:
+                return None
+
+            payload = request.get_json(silent=True)
+            if not isinstance(payload, dict):
+                return None
+
+            if "ctfd_modules_module_ids" not in payload:
+                return None
+
+            g.ctfd_modules_requested_module_ids = payload.get("ctfd_modules_module_ids")
+            try:
+                # Prevent CTFd challenge handlers from seeing unknown plugin field.
+                payload.pop("ctfd_modules_module_ids", None)
+            except Exception:
+                pass
+        except Exception:
+            return None
+
+        return None
 
     @app.before_request
     def ctfd_modules_redirect_challenges():
@@ -195,6 +339,46 @@ def register_plugin_runtime_hooks(app):
             return None
 
         return None
+
+    @app.after_request
+    def ctfd_modules_apply_modules_on_challenge_write(response):
+        try:
+            if not modules_enabled():
+                return response
+
+            user = get_current_user()
+            if not user or getattr(user, "type", None) != "admin":
+                return response
+
+            method = (request.method or "").upper()
+            path = request.path or ""
+            create_write = method == "POST" and path == "/api/v1/challenges"
+            update_match = re.match(r"^/api/v1/challenges/(\d+)$", path)
+            update_write = bool(update_match) and method in {"POST", "PUT", "PATCH"}
+            if not create_write and not update_write:
+                return response
+
+            if int(getattr(response, "status_code", 500) or 500) >= 400:
+                return response
+
+            module_ids = _requested_challenge_module_ids()
+            if module_ids is None:
+                return response
+
+            challenge_id = None
+            if update_match:
+                challenge_id = int(update_match.group(1))
+            else:
+                challenge_id = _challenge_id_from_write_response(response)
+
+            if not challenge_id:
+                return response
+
+            _apply_challenge_module_ids(int(challenge_id), module_ids)
+        except Exception:
+            return response
+
+        return response
 
     @app.after_request
     def ctfd_modules_filter_challenges_api(response):

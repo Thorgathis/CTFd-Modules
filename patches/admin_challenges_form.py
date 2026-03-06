@@ -38,6 +38,7 @@ def patch_admin_challenge_form_templates(app) -> dict:
     </select>
     <div id=\"ctfd-modules-tags\" class=\"my-2\"></div>
     <small id=\"ctfd-modules-module-status\" class=\"form-text text-muted mt-1\"></small>
+    <input type=\"hidden\" id=\"ctfd-modules-module-ids-state\" name=\"ctfd_modules_module_ids\" autocomplete=\"off\" value=\"{{ _ctfd_modules_cur_ids | tojson }}\">
     {# IMPORTANT: no `name` attribute; otherwise CTFd will try to bind it to the Challenges model and fail. #}
     <select class=\"d-none\" id=\"ctfd-modules-module-select\" multiple>
     {% for m in (ctfd_modules_all_modules() or []) %}

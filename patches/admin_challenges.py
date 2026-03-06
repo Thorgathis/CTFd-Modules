@@ -7,8 +7,8 @@ from .admin_challenges_listing import patch_admin_challenge_listing_templates
 def patch_admin_challenge_templates(app) -> dict:
     """Patch core admin challenge templates to include module selector.
 
-    We avoid touching CTFd internals: the selector is saved via a small JS call to
-    our plugin API endpoint which updates challenge-module links.
+    We avoid touching CTFd internals: selector state is kept in a hidden input and
+    synchronized by plugin hooks during challenge create/update requests.
     """
 
     results = {"create": False, "update": False, "listing": False}
