@@ -293,6 +293,9 @@ def module_view(module_id: int):
         abort(403)
 
     challenges = module_challenges_query(module, include_hidden=False)
+    if not challenges:
+        abort(404)
+
     progress = module_progress(user, module)
 
     challenge_ids = [c.id for c in challenges]

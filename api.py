@@ -174,6 +174,9 @@ def api_modules_challenges(module_id: int):
         return access_error
 
     challenges = module_challenges_query(module, include_hidden=False)
+    if not challenges:
+        return jsonify({"success": False, "error": "MODULE_EMPTY"}), 404
+
     solved_ids = _solved_ids_for_user(user)
 
     data = []
