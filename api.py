@@ -80,7 +80,7 @@ def _solved_ids_for_user(user: Users | None) -> set[int]:
 
 def _module_to_dict(module: Module, user: Users | None):
     has_access = user_has_module_access(user, module) if user else False
-    progress = module_progress(user, module) if has_access else {"solved": 0, "total": 0, "percent": 0}
+    progress = module_progress(user, module) if has_access else module_progress(None, module, challenge_ids=[])
     return {
         "id": module.id,
         "name": module.name,

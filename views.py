@@ -3,7 +3,7 @@ from __future__ import annotations
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 from werkzeug.exceptions import HTTPException
 
-from CTFd.models import Solves, db
+from CTFd.models import db
 from CTFd.utils.decorators import ratelimit
 from CTFd.utils.user import get_current_user
 
@@ -20,17 +20,6 @@ from .utils import (
     ordered_modules_query,
     ordered_category_names,
 )
-
-try:
-    from CTFd.utils.config import is_teams_mode
-except Exception:
-    is_teams_mode = None
-
-try:
-    from CTFd.utils.user import get_current_team
-except Exception:
-    get_current_team = None
-
 
 modules_bp = Blueprint("ctfd_modules", __name__, template_folder="templates", static_folder="static")
 
@@ -127,27 +116,6 @@ def _visible_challenge_ids_for_current_user(challenge_ids: set[int]) -> set[int]
     return visible_ids
 
 
-def _solve_ids_for_user(user, allowed_challenge_ids: set[int]) -> set[int]:
-    if not user or not allowed_challenge_ids:
-        return set()
-
-    q = db.session.query(Solves.challenge_id).filter(Solves.challenge_id.in_(list(allowed_challenge_ids)))
-
-    try:
-        if is_teams_mode and is_teams_mode() and get_current_team:
-            team = get_current_team()
-            if team:
-                q = q.filter(Solves.team_id == team.id)
-            else:
-                q = q.filter(Solves.user_id == user.id)
-        else:
-            q = q.filter(Solves.user_id == user.id)
-    except Exception:
-        q = q.filter(Solves.user_id == user.id)
-
-    return {challenge_id for (challenge_id,) in q.all()}
-
-
 @modules_bp.route("/modules")
 def modules_index():
     _ensure_modules_enabled()
@@ -193,8 +161,6 @@ def modules_index():
     if visible_challenge_ids is None:
         visible_challenge_ids = set()
 
-    solved_ids = _solve_ids_for_user(user, visible_challenge_ids)
-
     cards = []
     for m in visible:
         has_access = user_has_module_access(user, m)
@@ -204,12 +170,9 @@ def modules_index():
             continue
 
         if has_access:
-            solved = sum(1 for challenge_id in available_ids if challenge_id in solved_ids)
-            total = len(available_ids)
-            percent = int((solved / total) * 100) if total else 0
-            prog = {"solved": solved, "total": total, "percent": percent}
+            prog = module_progress(user, m, challenge_ids=available_ids)
         else:
-            prog = {"solved": 0, "total": len(available_ids), "percent": 0}
+            prog = module_progress(None, m, challenge_ids=available_ids)
 
         cards.append(
             {
@@ -296,9 +259,8 @@ def module_view(module_id: int):
     if not challenges:
         abort(404)
 
-    progress = module_progress(user, module)
-
     challenge_ids = [c.id for c in challenges]
+    progress = module_progress(user, module, challenge_ids=challenge_ids)
 
     return render_template(
         "modules/challenge_listing.html",

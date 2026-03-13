@@ -22,6 +22,10 @@ UI_THEME_DEFAULT = "auto"
 UI_THEME_ALLOWED = ("auto", "pixo", "core-beta")
 UI_THEME_CONFIG_KEY = "CTFD_MODULES_UI_THEME"
 
+PROGRESS_MODE_DEFAULT = "challenges"
+PROGRESS_MODE_ALLOWED = ("challenges", "points")
+PROGRESS_MODE_CONFIG_KEY = "CTFD_MODULES_PROGRESS_MODE"
+
 
 DEFAULTS = SettingsDefaults()
 
@@ -75,6 +79,21 @@ def set_ui_theme(value: str) -> None:
     if val not in UI_THEME_ALLOWED:
         val = UI_THEME_DEFAULT
     _write_ctfd_config(UI_THEME_CONFIG_KEY, val)
+
+
+def get_progress_mode() -> str:
+    raw = _read_ctfd_config(PROGRESS_MODE_CONFIG_KEY)
+    val = (str(raw or PROGRESS_MODE_DEFAULT)).strip().lower()
+    if val not in PROGRESS_MODE_ALLOWED:
+        val = PROGRESS_MODE_DEFAULT
+    return val
+
+
+def set_progress_mode(value: str) -> None:
+    val = (str(value or PROGRESS_MODE_DEFAULT)).strip().lower()
+    if val not in PROGRESS_MODE_ALLOWED:
+        val = PROGRESS_MODE_DEFAULT
+    _write_ctfd_config(PROGRESS_MODE_CONFIG_KEY, val)
 
 
 def _read_legacy_ctfd_config(key: str):
@@ -190,5 +209,6 @@ def update_settings_from_form(form) -> None:
 
     # theme (stored in CTFd Configs to avoid DB migrations)
     set_ui_theme(form.get("ui_theme") or UI_THEME_DEFAULT)
+    set_progress_mode(form.get("progress_mode") or PROGRESS_MODE_DEFAULT)
 
     db.session.commit()

@@ -54,6 +54,7 @@
 | **Main challenge board** | Режим фильтрации `GET /api/v1/challenges`: `all`, `only_modules`, `only_unassigned` |
 | **Redirect /challenges to /modules** | Редирект участников на страницу модулей |
 | **Invite code length** | Длина invite-кода для приватных модулей |
+| **Module progress display** | Как считать прогресс модулей: по количеству задач или по сумме баллов |
 | **Locked module message** | Текст для страницы locked-модуля |
 | **UI theme compatibility** | Режим совместимости интерфейса: `auto`, `pixo`, `core-beta` |
 

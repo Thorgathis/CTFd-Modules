@@ -49,3 +49,8 @@
   </div>
 </div>
 {% endblock %}
+
+{% block scripts %}
+{{ super() if super is defined else '' }}
+{% include "modules/_owl_instances.html" %}
+{% endblock %}

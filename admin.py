@@ -238,7 +238,7 @@ def admin_modules_settings():
         flash("Settings updated", "success")
         return redirect(url_for("ctfd_modules_admin.admin_modules_settings"))
 
-    from .utils import get_settings, get_ui_theme
+    from .utils import get_settings, get_ui_theme, get_progress_mode
 
     s = get_settings(create=True)
     current_mode = (getattr(s, "challenges_board_mode", "all") or "all").strip().lower()
@@ -247,6 +247,7 @@ def admin_modules_settings():
     invite_code_length = int(getattr(s, "invite_code_length", 8) or 8)
     lock_message = str(getattr(s, "lock_message", "") or "")
     ui_theme = get_ui_theme()
+    progress_mode = get_progress_mode()
 
     return render_template(
         "admin/modules/settings.html",
@@ -256,6 +257,7 @@ def admin_modules_settings():
         invite_code_length=invite_code_length,
         lock_message=lock_message,
         ui_theme=ui_theme,
+        progress_mode=progress_mode,
     )
 
 
@@ -454,4 +456,3 @@ def admin_users_search():
         )
 
     return jsonify({"success": True, "data": data})
-
