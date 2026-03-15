@@ -1,11 +1,11 @@
-  // Автоматически обновлять solves (legacy pixo)
-  function updateSolves(challengeId) {
-    try {
-      if (typeof window.getSolves === 'function') {
-        window.getSolves(challengeId);
-      }
-    } catch (e) {}
-  }
+// Автоматически обновлять solves (legacy pixo)
+function updateSolves(challengeId) {
+  try {
+    if (typeof window.getSolves === 'function') {
+      window.getSolves(challengeId);
+    }
+  } catch (e) { }
+}
 (function () {
   'use strict';
 
@@ -13,7 +13,7 @@
     try {
       var t = (window.CTFD_MODULES_UI_THEME || '').toString().trim().toLowerCase();
       if (t) return t;
-    } catch (e) {}
+    } catch (e) { }
     return 'auto';
   }
 
@@ -45,7 +45,7 @@
         if (!btn.classList.contains('btn-outline-secondary')) btn.classList.add('btn-outline-secondary');
         if (!btn.classList.contains('float-right')) btn.classList.add('float-right');
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function findNonce(root) {
@@ -61,15 +61,15 @@
       var m = document.querySelector('meta[name="csrf-token"], meta[name="csrfToken"], meta[name="csrf_nonce"], meta[name="nonce"]');
       var v = m ? (m.getAttribute('content') || '') : '';
       if (v) return v;
-    } catch (e) {}
+    } catch (e) { }
 
     // CTFd globals (varies by version)
     try {
       if (window.CTFd && window.CTFd.config && window.CTFd.config.csrfNonce) return window.CTFd.config.csrfNonce;
-    } catch (e) {}
+    } catch (e) { }
     try {
       if (window.init && window.init.nonce) return window.init.nonce;
-    } catch (e) {}
+    } catch (e) { }
 
     return '';
   }
@@ -78,11 +78,11 @@
     try {
       var el = (root || document).querySelector('input[name="challenge_id"], input[name="id"], input#challenge-id');
       if (el && el.value) return parseInt(el.value, 10);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       if (window.CTFD_MODULES_ACTIVE_CHALLENGE_ID) return parseInt(window.CTFD_MODULES_ACTIVE_CHALLENGE_ID, 10);
-    } catch (e) {}
+    } catch (e) { }
 
     return null;
   }
@@ -109,9 +109,9 @@
       fields.forEach(function (el) {
         try {
           el.value = '';
-        } catch (_) {}
+        } catch (_) { }
       });
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function setResult(root, kind, text) {
@@ -132,11 +132,11 @@
           try {
             notif.classList.remove('show');
             void notif.offsetWidth;
-          } catch (_) {}
+          } catch (_) { }
           requestAnimationFrame(function () {
             try {
               notif.classList.add('show');
-            } catch (_) {}
+            } catch (_) { }
           });
           // Auto-dismiss after 2.5s (fade out, then hide)
           setTimeout(function () {
@@ -145,11 +145,11 @@
               setTimeout(function () {
                 notif.style.display = 'none';
               }, 300);
-            } catch (_) {}
+            } catch (_) { }
           }, 2500);
           return;
         }
-      } catch (e) {}
+      } catch (e) { }
 
       var container = (root || document).querySelector('#ctfd-modules-attempt-result');
       if (!container) {
@@ -172,7 +172,7 @@
       requestAnimationFrame(function () {
         try {
           div.classList.add('show');
-        } catch (_) {}
+        } catch (_) { }
       });
       setTimeout(function () {
         try {
@@ -180,11 +180,11 @@
           setTimeout(function () {
             div.style.display = 'none';
           }, 300);
-        } catch (_) {}
+        } catch (_) { }
       }, 2500);
     } catch (e) {
       // last resort
-      try { alert(text); } catch (_) {}
+      try { alert(text); } catch (_) { }
     }
   }
 
@@ -199,7 +199,7 @@
           panes[i].classList.add('show');
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   function showBootstrapTab(tabEl) {
@@ -209,7 +209,7 @@
         window.bootstrap.Tab.getOrCreateInstance(tabEl).show();
         return true;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Bootstrap 4 + jQuery
     try {
@@ -217,7 +217,7 @@
         window.jQuery(tabEl).tab('show');
         return true;
       }
-    } catch (e) {}
+    } catch (e) { }
 
     return false;
   }
@@ -238,13 +238,13 @@
           tabs[i].classList.remove('active');
           try {
             tabs[i].setAttribute('aria-selected', 'false');
-          } catch (_) {}
+          } catch (_) { }
         }
       }
       tabEl.classList.add('active');
       try {
         tabEl.setAttribute('aria-selected', 'true');
-      } catch (_) {}
+      } catch (_) { }
 
       var pane = document.querySelector(targetSel);
       if (!pane) return true;
@@ -263,7 +263,7 @@
       requestAnimationFrame(function () {
         try {
           pane.classList.add('show');
-        } catch (_) {}
+        } catch (_) { }
       });
       return true;
     } catch (e) {
@@ -271,41 +271,20 @@
     }
   }
 
-  function hideModalWindow(modal) {
-    if (!modal) return false;
-
+  function normalizeModalCloseButtons(modal) {
     try {
-      if (window.bootstrap && window.bootstrap.Modal) {
-        window.bootstrap.Modal.getOrCreateInstance(modal).hide();
-        return true;
-      }
-    } catch (_) {}
-
-    try {
-      if (window.jQuery && typeof window.jQuery.fn.modal === 'function') {
-        window.jQuery(modal).modal('hide');
-        return true;
-      }
-    } catch (_) {}
-
-    try {
-      modal.classList.remove('show');
-      modal.setAttribute('aria-hidden', 'true');
-      modal.style.display = 'none';
-      document.body.classList.remove('modal-open');
-      if (document.body && document.body.style) {
-        document.body.style.removeProperty('padding-right');
-      }
-      var backdrops = document.querySelectorAll('.modal-backdrop');
-      for (var i = 0; i < backdrops.length; i++) {
+      var root = modal || document;
+      var closeButtons = root.querySelectorAll('.btn-close, .close');
+      if (!closeButtons || !closeButtons.length) return;
+      for (var i = 0; i < closeButtons.length; i++) {
+        var btn = closeButtons[i];
         try {
-          backdrops[i].remove();
-        } catch (_) {}
+          if (!btn.getAttribute('data-bs-dismiss')) btn.setAttribute('data-bs-dismiss', 'modal');
+          if (!btn.getAttribute('data-dismiss')) btn.setAttribute('data-dismiss', 'modal');
+          if (!btn.getAttribute('type') && btn.tagName === 'BUTTON') btn.setAttribute('type', 'button');
+        } catch (_) { }
       }
-      return true;
-    } catch (_) {}
-
-    return false;
+    } catch (_) { }
   }
 
   function formatRelativeFromNow(dateObj) {
@@ -336,7 +315,7 @@
           return isFuture ? ('in ' + label) : (label + ' ago');
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -348,14 +327,14 @@
           return dx.fromNow();
         }
       }
-    } catch (_) {}
+    } catch (_) { }
     try {
       var d = new Date(raw);
       if (!isNaN(d.getTime())) {
         var rel = formatRelativeFromNow(d);
         if (rel) return rel;
       }
-    } catch (_) {}
+    } catch (_) { }
     return raw || '';
   }
 
@@ -365,7 +344,7 @@
       if (payload && Array.isArray(payload.data)) return payload.data;
       if (payload && payload.data && Array.isArray(payload.data.data)) return payload.data.data;
       if (payload && payload.data && payload.data.solves && Array.isArray(payload.data.solves)) return payload.data.solves;
-    } catch (_) {}
+    } catch (_) { }
     return null;
   }
 
@@ -376,7 +355,7 @@
         var fromApi = extractSolvesList(apiResp);
         if (fromApi) return { ok: true, list: fromApi };
       }
-    } catch (_) {}
+    } catch (_) { }
 
     try {
       var url = '/api/v1/challenges/' + encodeURIComponent(String(challengeId)) + '/solves';
@@ -400,7 +379,7 @@
       if (row && row.account && row.account.name) return String(row.account.name);
       if (row && row.user && row.user.name) return String(row.user.name);
       if (row && row.team && row.team.name) return String(row.team.name);
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -409,7 +388,7 @@
       if (row && row.date) return row.date;
       if (row && row.created) return row.created;
       if (row && row.created_at) return row.created_at;
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -417,7 +396,7 @@
     try {
       if (row && row.account_url) return String(row.account_url);
       if (row && row.account && row.account.url) return String(row.account.url);
-    } catch (_) {}
+    } catch (_) { }
     return '';
   }
 
@@ -439,7 +418,7 @@
       for (var i = 0; i < links.length; i++) {
         links[i].textContent = String(count) + ' Solves';
       }
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function renderSolvesFallback(modal, solves) {
@@ -482,7 +461,7 @@
       if (typeof fn === 'function' && !fn.__ctfdModulesShim) {
         return fn(challengeId);
       }
-    } catch (_) {}
+    } catch (_) { }
     return null;
   }
 
@@ -505,7 +484,7 @@
       if (root.dataset && root.dataset.ctfdModulesSolvesLoadedFor === key) return;
       if (root.dataset && root.dataset.ctfdModulesSolvesLoadingFor === key) return;
       if (root.dataset) root.dataset.ctfdModulesSolvesLoadingFor = key;
-    } catch (_) {}
+    } catch (_) { }
 
     try {
       // Let theme/core implementation run first when available.
@@ -518,7 +497,7 @@
         if (maybePromise && typeof maybePromise.then === 'function') {
           await maybePromise;
         }
-      } catch (_) {}
+      } catch (_) { }
 
       // Only use direct fetch fallback when no theme loader exists.
       if (!usedThemeLoader) {
@@ -532,13 +511,13 @@
         if (root.dataset) {
           root.dataset.ctfdModulesSolvesLoadedFor = key;
         }
-      } catch (_) {}
+      } catch (_) { }
     } finally {
       try {
         if (root.dataset && root.dataset.ctfdModulesSolvesLoadingFor === key) {
           delete root.dataset.ctfdModulesSolvesLoadingFor;
         }
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 
@@ -548,7 +527,7 @@
       if (!root.dataset) return;
       delete root.dataset.ctfdModulesSolvesLoadedFor;
       delete root.dataset.ctfdModulesSolvesLoadingFor;
-    } catch (_) {}
+    } catch (_) { }
   }
 
   function currentChallengeKey(modal) {
@@ -579,7 +558,7 @@
         var name = candidates[i];
         if (typeof api[name] === 'function') return api[name].bind(api);
       }
-    } catch (e) {}
+    } catch (e) { }
     return null;
   }
 
@@ -657,7 +636,7 @@
   function tryRefresh(challengeId) {
     try {
       window.dispatchEvent(new CustomEvent('load-challenges'));
-    } catch (e) {}
+    } catch (e) { }
   }
 
   async function handleAttempt(root, e) {
@@ -672,13 +651,13 @@
         if (modal && modal.dataset) {
           modal.dataset.ctfdModulesAttemptInFlight = '1';
         }
-      } catch (_) {}
+      } catch (_) { }
 
       var submitBtn = null;
       try {
         submitBtn = modal.querySelector('#challenge-submit, .challenge-submit');
         if (submitBtn) submitBtn.disabled = true;
-      } catch (_) {}
+      } catch (_) { }
 
       var challengeId = findChallengeId(modal);
       var submission = findSubmission(modal);
@@ -707,7 +686,7 @@
       var message = (json.data && json.data.message) || json.message || '';
       if (status === 'correct') {
         setResult(modal, 'success', message || 'Correct');
-         updateSolves(challengeId);
+        updateSolves(challengeId);
         // Refresh the board/list, but don't immediately reload the modal view,
         // otherwise the result UI disappears due to x-html re-render.
         setTimeout(function () {
@@ -715,7 +694,7 @@
         }, 400);
       } else if (status === 'already_solved') {
         setResult(modal, 'warning', message || 'Already solved');
-         updateSolves(challengeId);
+        updateSolves(challengeId);
         setTimeout(function () {
           tryRefresh(challengeId);
         }, 400);
@@ -725,22 +704,22 @@
     } catch (err) {
       try {
         setResult(root || document, 'danger', 'Flag submission failed');
-      } catch (_) {}
+      } catch (_) { }
     } finally {
       try {
         var modal2 = root || document;
         if (modal2 && modal2.dataset) {
           delete modal2.dataset.ctfdModulesAttemptInFlight;
         }
-      } catch (_) {}
+      } catch (_) { }
       try {
         clearSubmissionInputs(root || document);
-      } catch (_) {}
+      } catch (_) { }
       try {
         var modal3 = root || document;
         var btn = modal3 && modal3.querySelector ? modal3.querySelector('#challenge-submit, .challenge-submit') : null;
         if (btn) btn.disabled = false;
-      } catch (_) {}
+      } catch (_) { }
     }
   }
 
@@ -763,7 +742,7 @@
           }
           void loadSolvesReliable(modal, challengeId);
         }
-      } catch (_) {}
+      } catch (_) { }
     }
     // При первом attach
     autoLoadSolves();
@@ -773,26 +752,29 @@
         autoLoadSolves();
       });
       observer.observe(modal, { childList: true, subtree: true });
-    } catch (_) {}
+    } catch (_) { }
     // Normalize UI whenever the modal content changes (Alpine x-html / theme differences).
     try {
       // Ensure tab panes get smooth fade transitions after dynamic injection.
       ensureTabFade(modal);
+      normalizeModalCloseButtons(modal);
 
       if (shouldApplyPixoShims(modal)) {
         normalizePixoModalUi(modal);
         var observer = new MutationObserver(function () {
           ensureTabFade(modal);
+          normalizeModalCloseButtons(modal);
           if (shouldApplyPixoShims(modal)) normalizePixoModalUi(modal);
         });
         observer.observe(modal, { childList: true, subtree: true });
       } else {
         var observer2 = new MutationObserver(function () {
           ensureTabFade(modal);
+          normalizeModalCloseButtons(modal);
         });
         observer2.observe(modal, { childList: true, subtree: true });
       }
-    } catch (e) {}
+    } catch (e) { }
 
     // Capture submits inside the modal and do the attempt ourselves.
     modal.addEventListener(
@@ -817,7 +799,7 @@
         } catch (err) {
           try {
             setResult(document.getElementById('challenge-window'), 'danger', 'Flag submission failed');
-          } catch (_) {}
+          } catch (_) { }
         }
       },
       true
@@ -832,15 +814,13 @@
           var t = e.target;
           if (!t) return;
           var closeBtn = null;
-          if (t.matches && t.matches('[data-bs-dismiss="modal"], [data-dismiss="modal"], .modal-header .btn-close, .modal-header .close')) {
+          if (t.matches && t.matches('[data-bs-dismiss="modal"], [data-dismiss="modal"], .btn-close, .close')) {
             closeBtn = t;
           } else if (t.closest) {
-            closeBtn = t.closest('[data-bs-dismiss="modal"], [data-dismiss="modal"], .modal-header .btn-close, .modal-header .close');
+            closeBtn = t.closest('[data-bs-dismiss="modal"], [data-dismiss="modal"], .btn-close, .close');
           }
           if (closeBtn) {
-            e.preventDefault();
-            e.stopPropagation();
-            hideModalWindow(modal);
+            // Let Bootstrap data-api handle close natively.
             return;
           }
 
@@ -867,10 +847,23 @@
             var challengeId2 = findChallengeId(modal);
             if (challengeId2) void loadSolvesReliable(modal, challengeId2);
           }
-        } catch (err) {}
+        } catch (err) { }
       },
       true
     );
+
+    modal.addEventListener('hidden.bs.modal', function () {
+      try {
+        var path = String(window.location && window.location.pathname ? window.location.pathname : '');
+        if (path.indexOf('/modules/') === -1) return;
+        if (!window.location.hash) return;
+        if (window.history && typeof window.history.replaceState === 'function') {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } else {
+          window.location.hash = '';
+        }
+      } catch (_) { }
+    });
 
     // PIXO / some themes: submit button may not be inside a <form>.
     modal.addEventListener(
@@ -879,11 +872,11 @@
         try {
           var t = e.target;
           if (!t) return;
-           // Legacy solves click
-           if (t.classList && t.classList.contains('challenge-solves')) {
-             var challengeId = findChallengeId(modal);
-             if (challengeId) void loadSolvesReliable(modal, challengeId);
-           }
+          // Legacy solves click
+          if (t.classList && t.classList.contains('challenge-solves')) {
+            var challengeId = findChallengeId(modal);
+            if (challengeId) void loadSolvesReliable(modal, challengeId);
+          }
           var btn = null;
           if (t.matches && (t.matches('#challenge-submit') || t.matches('.challenge-submit'))) {
             btn = t;
@@ -892,7 +885,7 @@
           }
           if (!btn) return;
           void handleAttempt(modal, e);
-        } catch (err) {}
+        } catch (err) { }
       },
       true
     );
@@ -908,7 +901,7 @@
             return;
           }
           void handleAttempt(modal, e);
-        } catch (err) {}
+        } catch (err) { }
       },
       true
     );
@@ -923,7 +916,7 @@
       getSolvesShim.__ctfdModulesShim = true;
       window.getSolves = getSolvesShim;
     }
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     document.addEventListener('click', function (e) {
@@ -939,9 +932,9 @@
           var key = currentChallengeKey(modal);
           if (key) modal.dataset.ctfdModulesCurrentChallengeKey = key;
         }
-      } catch (_) {}
+      } catch (_) { }
     }, true);
-  } catch (_) {}
+  } catch (_) { }
 
   document.addEventListener('DOMContentLoaded', attach);
 })();
